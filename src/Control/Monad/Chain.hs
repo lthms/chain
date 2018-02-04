@@ -51,13 +51,13 @@ import           GHC.Exts (Constraint)
 
 import           Data.TypeSet hiding (cast)
 
-newtype ResultT msg (err :: [*]) m a = ResultT (StateT [msg] (ExceptT ([msg], OneOf err) m) a)
+newtype ResultT msg (err :: [*]) m a = ResultT (ExceptT ([msg], OneOf err) m a)
   deriving (Functor, Applicative, Monad)
 
 type Result e a = ResultT e a Identity
 
 instance MonadTrans (ResultT msg err) where
-  lift m = ResultT (lift . lift $ m)
+  lift m = ResultT (lift $ m)
 
 instance (MonadIO m) => MonadIO (ResultT msg err m) where
   liftIO = lift . liftIO
@@ -68,23 +68,13 @@ instance (Monad m, MonadState s m) => MonadState s (ResultT msg err m) where
 instance (Monad m, MonadReader env m) => MonadReader env (ResultT msg err m) where
   ask = lift ask
   local f (ResultT chain) = do
-    ctx <- getCtx
-    res <- lift . local f $ runExceptT (runStateT chain ctx)
+    res <- lift . local f $ runExceptT chain
     case res of
       Left (ctx, err) -> throwErr (ctx, err)
-      Right (x, _)    -> pure x
+      Right x         -> pure x
 
 gRunResultT :: Monad m => ResultT msg err m a -> m (Either ([msg], OneOf err) a)
-gRunResultT (ResultT chain) = fmap fst <$> runExceptT (runStateT chain [])
-
-getCtx :: (Monad m) => ResultT msg err m [msg]
-getCtx = ResultT get
-
-putCtx :: (Monad m) => [msg] -> ResultT msg err m ()
-putCtx = ResultT . put
-
-modifyCtx :: (Monad m) => ([msg] -> [msg]) -> ResultT msg err m ()
-modifyCtx f = ResultT $ modify f
+gRunResultT (ResultT chain) = runExceptT chain
 
 throwErr :: (Monad m) => ([msg], OneOf err) -> ResultT msg err m a
 throwErr err = ResultT $ throwError err
@@ -119,12 +109,11 @@ class Recover plus where
 
   liftE :: (Monad m) => ResultT msg err m a -> ResultT msg (Join plus err) m a
   liftE (ResultT chain) = do
-    ctx <- getCtx
-    res <- lift $ runExceptT (runStateT chain ctx)
+    res <- lift $ runExceptT chain
     case res of
       Left (ctx, err) -> do
         throwErr (ctx, cast @plus err)
-      Right (x, _) -> do
+      Right x -> do
         pure x
 
 instance Recover '[] where
@@ -155,8 +144,10 @@ recoverManyWith chain f = recoverMany @plus chain (generalize @c @plus @([msg] -
 
 achieve :: (Monad m) => msg -> ResultT msg err m a -> ResultT msg err m a
 achieve msg chain  = do
-  ctx <- getCtx
-  modifyCtx (msg:) *> chain <* putCtx ctx
+  res <- lift $ gRunResultT chain
+  case res of
+    Left (ctx, err) -> throwErr (msg:ctx, err)
+    Right x         -> pure x
 
 (<?>) :: (Monad m) => ResultT msg err m a -> msg -> ResultT msg err m a
 (<?>) = flip achieve
@@ -169,14 +160,13 @@ handle :: forall e err msg m a.
        -> ResultT msg err m a
        -> ResultT msg (Remove err e) m a
 handle f (ResultT chain) = do
-  ctx <- getCtx
-  res <- lift $ runExceptT (runStateT chain ctx)
+  res <- lift $ runExceptT chain
   case res of
     Left (ctx, err) ->
       case shrink err of
         Left e    -> f e ctx
         Right err -> throwErr (ctx, err)
-    Right (x, _) -> pure x
+    Right x -> pure x
 
 repeatUntil :: forall e err msg m.
                (Monad m)
@@ -196,15 +186,14 @@ type family set1 :< set2 :: Constraint where
 --   error is transmitted to the caller computation. Using the 'recover',
 --   'recoverWhile' or 'recoverMany' functions to stop the chain.
 abort :: (Contains err e, Monad m) => e -> ResultT msg err m a
-abort e = getCtx >>= (flip $ curry throwErr) (inj e)
+abort e = throwErr ([], inj e)
 
 (<!>) :: forall e err msg m a. (Monad m, Contains err e) => ResultT msg err m a -> (e -> [msg] -> m a) -> ResultT msg err m a
 (ResultT chain) <!> f = do
-  ctx <- getCtx
-  res <- lift $ runExceptT (runStateT chain ctx)
+  res <- lift $ runExceptT chain
   case res of
     Left (ctx, err) ->
       case proj @err @e err of
         Just e  -> lift $ f e ctx
         Nothing -> throwErr (ctx, err)
-    Right (x, _) -> pure x
+    Right x -> pure x
