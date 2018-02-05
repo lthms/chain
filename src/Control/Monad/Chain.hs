@@ -32,6 +32,7 @@ module Control.Monad.Chain
     , recoverMany
     , recoverManyWith
     , repeatUntil
+    , foldUntil
       -- * Leverage Existing Error Handling
     , eitherOr
     , exceptOr
@@ -156,6 +157,20 @@ repeatUntil :: forall e err msg m.
             -> (e -> [msg] -> ResultT msg err m ())
             -> ResultT msg err m ()
 repeatUntil chain f = recover (forever chain) f
+
+foldUntil :: forall e err msg m a.
+             (Monad m)
+          => (a -> ResultT msg (e:err) m a)
+          -> (a -> e -> [msg] -> ResultT msg err m a)
+          -> a
+          -> ResultT msg err m a
+foldUntil chain errh x = do
+  res <- lift $ gRunResultT (chain x)
+  case res of
+    Right x' -> foldUntil chain errh x'
+    Left (ctx, err) -> case shrink err of
+      Right e -> throwErr (ctx, e)
+      Left e -> errh x e ctx
 
 type family set1 :< set2 :: Constraint where
   '[] :< set2 = ()
