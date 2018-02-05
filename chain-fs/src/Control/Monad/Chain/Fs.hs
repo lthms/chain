@@ -10,9 +10,7 @@ module Control.Monad.Chain.Fs
     , IO.IOMode(..)
     , DescriptiveError(..)
       -- * Errors
-    , AlreadyInUse(..)
-    , DoesNotExist(..)
-    , AccessDeny(..)
+    , AccessError(..)
     , EoF(..)
     , IllegalOperation(..)
     ) where
@@ -29,19 +27,16 @@ import           Control.Exception
 class DescriptiveError err where
   describe :: err -> String
 
-newtype AlreadyInUse = AlreadyInUse FilePath
-newtype DoesNotExist = DoesNotExist FilePath
-data AccessDeny = AccessDeny FilePath IO.IOMode
+data AccessError = AlreadyInUse FilePath
+                 | DoesNotExist FilePath
+                 | AccessDeny FilePath IO.IOMode
+
 data EoF = EoF
 data IllegalOperation = IllegalRead
 
-instance DescriptiveError AlreadyInUse where
+instance DescriptiveError AccessError where
   describe (AlreadyInUse path) = "File " ++ path ++ " is already used by something else"
-
-instance DescriptiveError AccessDeny where
   describe (AccessDeny path mode) = "Accesses " ++ show mode ++ " were not enough to work with " ++ path
-
-instance DescriptiveError DoesNotExist where
   describe (DoesNotExist path) = "File " ++ path ++ " does not exist"
 
 instance DescriptiveError IllegalOperation where
@@ -50,7 +45,7 @@ instance DescriptiveError IllegalOperation where
 trySystemIO :: (MonadIO m) => IO a -> m (Either IOError a)
 trySystemIO act = liftIO $ handle (pure . Left) $ Right <$> act
 
-openFile :: ('[AlreadyInUse, DoesNotExist, AccessDeny] :< err, MonadIO m)
+openFile :: (Contains err AccessError, MonadIO m)
          => FilePath -> IO.IOMode -> ResultT msg err m IO.Handle
 openFile path mode = do
   h <- trySystemIO $ IO.openFile path mode
