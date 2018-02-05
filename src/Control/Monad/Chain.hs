@@ -45,8 +45,8 @@ module Control.Monad.Chain
     , OneOf
     , Contains
     , (:<)
-    , (<.>)
-    , (<->)
+    , (+>)
+    , closeFunction
     , HaveInstance(..)
     ) where
 
@@ -95,40 +95,30 @@ recover :: forall e m msg err a.
         -> ResultT msg err m a
 recover = flip handle
 
-class Recover plus where
-  recoverMany :: (Monad m) => ResultT msg (Join plus err) m a -> Intos plus ([msg] -> ResultT msg err m a) -> ResultT msg err m a
-  cast :: OneOf set -> OneOf (Join plus set)
-
-  liftE :: (Monad m) => ResultT msg err m a -> ResultT msg (Join plus err) m a
-  liftE (ResultT chain) = do
-    res <- lift $ runExceptT chain
-    case res of
-      Left (ctx, err) -> do
-        throwErr (ctx, cast @plus err)
-      Right x -> do
-        pure x
-
-instance Recover '[] where
-  recoverMany chain Nop = chain
-  cast _ = error "should not happen as OneOf '[] is inhabited"
-
-instance (Recover set) => Recover (e:set) where
-  cast = Next . (cast @set)
-
-  recoverMany chain (Push (Into f) h) =
-    recoverMany @set (handle @e (\e m -> liftE @set $ f e m) chain) h
+recoverMany :: forall plus err m msg a.
+               (Split plus err, Monad m)
+            => ResultT msg (Join plus err) m a
+            -> (OneOf plus -> [msg] -> ResultT msg err m a)
+            -> ResultT msg err m a
+recoverMany chain f = do
+  res <- lift $ gRunResultT chain
+  case res of
+    Right x -> pure x
+    Left (ctx, x) -> case split @plus @err x of
+      Right x -> throwErr (ctx, x)
+      Left x -> f x ctx
 
 class HaveInstance c set where
-  generalize :: (forall e. c e => e -> a) -> Intos set a
+  generalize :: (forall e. c e => e -> a) -> (OneOf set -> a)
 
 instance HaveInstance c '[] where
-  generalize _ = Nop
+  generalize _ = closeFunction
 
 instance (HaveInstance c rst, c e) => HaveInstance c (e:rst) where
-  generalize (f :: forall e. c e => e -> a) = Push (Into f) (generalize @c @rst @a f)
+  generalize (f :: forall e. c e => e -> a) = f +> generalize @c @rst @a f
 
 recoverManyWith :: forall plus c m msg err a.
-                   (Monad m, Recover plus, HaveInstance c plus)
+                   (Monad m, Split plus err, HaveInstance c plus)
                 => ResultT msg (Join plus err) m a
                 -> (forall e. c e => e -> [msg] -> ResultT msg err m a)
                 -> ResultT msg err m a
@@ -165,7 +155,7 @@ repeatUntil :: forall e err msg m.
             => (ResultT msg (e:err) m ())
             -> (e -> [msg] -> ResultT msg err m ())
             -> ResultT msg err m ()
-repeatUntil chain f = recover @e (forever chain) f
+repeatUntil chain f = recover (forever chain) f
 
 type family set1 :< set2 :: Constraint where
   '[] :< set2 = ()

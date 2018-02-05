@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -57,6 +58,16 @@ instance (Shrink' set e set') => Shrink' (any:set) e (any:set') where
     Left x  -> Left x
     Right x -> Right (Next x)
 
+(+>) :: (e -> a) -> (OneOf set -> a) -> (OneOf (e:set) -> a)
+f +> fset = \case
+  Sel x -> f x
+  Next x -> fset x
+
+closeFunction :: OneOf '[] -> a
+closeFunction _ = error "should not be possible, as OneOf '[] is inhabited"
+
+infixr +>
+
 class Shrink e set where
   shrink :: OneOf set -> Either e (OneOf (Remove set e))
 
@@ -70,6 +81,18 @@ data AllOf set where
 type family Join set set' :: [*] where
   Join (a:rst) set = a:Join rst set
   Join '[] set = set
+
+class Split set set' where
+  split :: OneOf (Join set set') -> Either (OneOf set) (OneOf set')
+
+instance Split '[] set where
+  split = Right
+
+instance Split set set' => Split (e:set) set' where
+  split (Sel x) = Left (Sel x)
+  split (Next x) = case split @set @set' x of
+    Right x -> Right x
+    Left x -> Left $ Next x
 
 type family Map set (f :: * -> *) :: [*] where
   Map (e:set) f = f e:Map set f
