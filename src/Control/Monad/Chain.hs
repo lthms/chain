@@ -48,30 +48,14 @@ import           Control.Monad.IO.Class
 import           Control.Monad.Reader
 import           Control.Monad.State
 import           GHC.Exts (Constraint)
+import Data.Maybe (fromMaybe)
 
 import           Data.TypeSet hiding (cast)
 
 newtype ResultT msg (err :: [*]) m a = ResultT (ExceptT ([msg], OneOf err) m a)
-  deriving (Functor, Applicative, Monad)
+  deriving (Functor, Applicative, Monad, MonadReader env, MonadState s, MonadIO, MonadTrans)
 
 type Result e a = ResultT e a Identity
-
-instance MonadTrans (ResultT msg err) where
-  lift m = ResultT (lift $ m)
-
-instance (MonadIO m) => MonadIO (ResultT msg err m) where
-  liftIO = lift . liftIO
-
-instance (Monad m, MonadState s m) => MonadState s (ResultT msg err m) where
-  state = lift . state
-
-instance (Monad m, MonadReader env m) => MonadReader env (ResultT msg err m) where
-  ask = lift ask
-  local f (ResultT chain) = do
-    res <- lift . local f $ runExceptT chain
-    case res of
-      Left (ctx, err) -> throwErr (ctx, err)
-      Right x         -> pure x
 
 gRunResultT :: Monad m => ResultT msg err m a -> m (Either ([msg], OneOf err) a)
 gRunResultT (ResultT chain) = runExceptT chain
