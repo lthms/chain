@@ -33,6 +33,15 @@ module Control.Monad.Chain
     , recoverManyWith
     , (<!>)
     , repeatUntil
+      -- * Leverage Existing Error Handling
+    , eitherOr
+    , exceptOr
+    , orAbort
+    , orAbortM
+    , orElse
+    , orElseM
+    , eitherAbort
+    , exceptAbort
       -- * Set of Errors
     , OneOf
     , Contains
@@ -181,3 +190,57 @@ abort e = throwErr ([], inj e)
         Just e  -> lift $ f e ctx
         Nothing -> throwErr (ctx, err)
     Right x -> pure x
+
+orAbortM :: (Contains err e, Monad m)
+         => m (Maybe a)
+         -> e
+         -> ResultT msg err m a
+orAbortM c e = lift c >>= (`orAbort` e)
+
+orAbort :: (Contains err e, Monad m)
+        => Maybe a
+        -> e
+        -> ResultT msg err m a
+orAbort (Just x) e = pure x
+orAbort _        e = abort e
+
+eitherAbort :: (Contains err e, Monad m)
+            => Either e a
+            -> ResultT msg err m a
+eitherAbort (Right x) = pure x
+eitherAbort (Left e)  = abort e
+
+exceptAbort :: (Contains err e, MonadError e m)
+            => m a
+            -> ResultT msg err m a
+exceptAbort c = eitherToExcept c >>= eitherAbort
+
+eitherOr :: (Monad m)
+         => Either e a
+         -> a
+         -> ResultT msg err m a
+eitherOr (Right x) _ = pure x
+eitherOr _         x = pure x
+
+exceptOr :: (Monad m, MonadError e m)
+         => m a
+         -> a
+         -> ResultT msg err m a
+exceptOr c e = eitherToExcept c >>= (`eitherOr` e)
+
+orElse :: (Monad m)
+       => Maybe a
+       -> a
+       -> ResultT msg err m a
+orElse m x = pure (fromMaybe x m)
+
+orElseM :: (Monad m)
+        => m (Maybe a)
+        -> a
+        -> ResultT msg err m a
+orElseM c x = lift c >>= (`orElse` x)
+
+eitherToExcept :: (MonadError e m)
+               => m a
+               -> ResultT msg err m (Either e a)
+eitherToExcept m = lift ((Right <$> m) `catchError` (pure . Left))
