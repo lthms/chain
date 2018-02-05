@@ -1,0 +1,27 @@
+#!/bin/sh
+
+CHANGED_HS="$(git diff --cached --name-only --diff-filter=ACM | egrep "\.hs$" || true)"
+
+for f in ${CHANGED_HS}; do
+    echo "[*] ${f}"
+
+    t=$(mktemp)
+    git show ":${f}" > "${t}"
+
+    stack exec hlint "${t}"
+
+    if [ $? -ne 0 ]; then
+        rm "${t}"
+        exit 1
+    fi
+
+    if [[ -n "$(stack exec stylish-haskell ${t} | diff /proc/self/fd/0 "${t}")" ]]; then
+        echo "Applying stylish-haskell (you need to run 'git add -p' to stage the change)"
+        stack exec stylish-haskell -- -i "${f}"
+
+        rm "${t}"
+        exit 1
+    fi
+
+    rm "${t}"
+done

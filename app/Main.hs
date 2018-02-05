@@ -1,12 +1,13 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
 
 module Main where
 
-import Control.Monad.Chain
-import Control.Monad.State
+import           Control.Monad.Chain
+import           Control.Monad.State
 
 type ErrIO err = ResultT String err (StateT Int IO)
 
@@ -14,7 +15,7 @@ myInnerError :: (Contains err Bool) => ErrIO err ()
 myInnerError = put 1 >> abort True
 
 myErrorFunc :: ErrIO err ()
-myErrorFunc = do
+myErrorFunc =
   achieve "Testing the `chain` package" $ do
     recoverWhile @Bool "hum"
       (myInnerError <?> "myInnerError call")

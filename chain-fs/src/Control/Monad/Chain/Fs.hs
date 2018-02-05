@@ -1,6 +1,7 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeOperators         #-}
 
 module Control.Monad.Chain.Fs
     ( -- * Functions
@@ -15,14 +16,14 @@ module Control.Monad.Chain.Fs
     , IllegalOperation(..)
     ) where
 
-import           Prelude hiding (getLine)
-import           Control.Monad.Chain
-import           Data.Text (Text)
-import qualified Data.Text.IO as TIO
-import qualified System.IO as IO
-import qualified System.IO.Error as IO
-import           Control.Monad.IO.Class
 import           Control.Exception
+import           Control.Monad.Chain
+import           Control.Monad.IO.Class
+import           Data.Text              (Text)
+import qualified Data.Text.IO           as TIO
+import           Prelude                hiding (getLine)
+import qualified System.IO              as IO
+import qualified System.IO.Error        as IO
 
 class DescriptiveError err where
   describe :: err -> String
