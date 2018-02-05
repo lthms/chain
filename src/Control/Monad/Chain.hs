@@ -31,7 +31,6 @@ module Control.Monad.Chain
     , recover
     , recoverMany
     , recoverManyWith
-    , (<!>)
     , repeatUntil
       -- * Leverage Existing Error Handling
     , eitherOr
@@ -180,16 +179,6 @@ type family set1 :< set2 :: Constraint where
 --   'recoverWhile' or 'recoverMany' functions to stop the chain.
 abort :: (Contains err e, Monad m) => e -> ResultT msg err m a
 abort e = throwErr ([], inj e)
-
-(<!>) :: forall e err msg m a. (Monad m, Contains err e) => ResultT msg err m a -> (e -> [msg] -> m a) -> ResultT msg err m a
-(ResultT chain) <!> f = do
-  res <- lift $ runExceptT chain
-  case res of
-    Left (ctx, err) ->
-      case proj @err @e err of
-        Just e  -> lift $ f e ctx
-        Nothing -> throwErr (ctx, err)
-    Right x -> pure x
 
 orAbortM :: (Contains err e, Monad m)
          => m (Maybe a)
