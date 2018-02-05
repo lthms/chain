@@ -1,21 +1,21 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE AllowAmbiguousTypes   #-}
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
 module Data.TypeSet where
 
-import GHC.Exts (Constraint)
+import           GHC.Exts (Constraint)
 
 data OneOf set where
   Next :: OneOf set -> OneOf (e:set)
@@ -92,7 +92,7 @@ instance Split set set' => Split (e:set) set' where
   split (Sel x) = Left (Sel x)
   split (Next x) = case split @set @set' x of
     Right x -> Right x
-    Left x -> Left $ Next x
+    Left x  -> Left $ Next x
 
 type family Map set (f :: * -> *) :: [*] where
   Map (e:set) f = f e:Map set f

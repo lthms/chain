@@ -1,7 +1,5 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE AllowAmbiguousTypes        #-}
+{-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE FlexibleInstances          #-}
@@ -10,6 +8,8 @@
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MonoLocalBinds             #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE Rank2Types                 #-}
+{-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
@@ -56,10 +56,10 @@ import           Control.Monad.Identity
 import           Control.Monad.IO.Class
 import           Control.Monad.Reader
 import           Control.Monad.State
-import           GHC.Exts (Constraint)
-import Data.Maybe (fromMaybe)
+import           Data.Maybe             (fromMaybe)
+import           GHC.Exts               (Constraint)
 
-import           Data.TypeSet hiding (cast)
+import           Data.TypeSet
 
 newtype ResultT msg (err :: [*]) m a = ResultT (ExceptT ([msg], OneOf err) m a)
   deriving (Functor, Applicative, Monad, MonadReader env, MonadState s, MonadIO, MonadTrans)
@@ -94,7 +94,7 @@ recover :: forall e m msg err a.
         => ResultT msg (e:err) m a
         -> (e -> [msg] -> ResultT msg err m a)
         -> ResultT msg err m a
-recover = flip handle
+recover = flip pickError
 
 recoverMany :: forall plus err m msg a.
                (Split plus err, Monad m)
@@ -107,7 +107,7 @@ recoverMany chain f = do
     Right x -> pure x
     Left (ctx, x) -> case split @plus @err x of
       Right x -> throwErr (ctx, x)
-      Left x -> f x ctx
+      Left x  -> f x ctx
 
 class HaveInstance c set where
   generalize :: (forall e. c e => e -> a) -> (OneOf set -> a)
@@ -135,14 +135,12 @@ achieve msg chain  = do
 (<?>) :: (Monad m) => ResultT msg err m a -> msg -> ResultT msg err m a
 (<?>) = flip achieve
 
-handle :: forall e err msg m a.
-          ( Monad m
-          , Shrink e err
-          , Contains err e)
-       => (e -> [msg] -> ResultT msg (Remove err e) m a)
-       -> ResultT msg err m a
-       -> ResultT msg (Remove err e) m a
-handle f (ResultT chain) = do
+pickError :: forall e err msg m a.
+             ( Monad m, Shrink e err, Contains err e)
+          => (e -> [msg] -> ResultT msg (Remove err e) m a)
+          -> ResultT msg err m a
+          -> ResultT msg (Remove err e) m a
+pickError f (ResultT chain) = do
   res <- lift $ runExceptT chain
   case res of
     Left (ctx, err) ->
@@ -153,10 +151,10 @@ handle f (ResultT chain) = do
 
 repeatUntil :: forall e err msg m.
                (Monad m)
-            => (ResultT msg (e:err) m ())
+            => ResultT msg (e:err) m ()
             -> (e -> [msg] -> ResultT msg err m ())
             -> ResultT msg err m ()
-repeatUntil chain f = recover (forever chain) f
+repeatUntil chain = recover (forever chain)
 
 foldUntil :: forall e err msg m a.
              (Monad m)
@@ -170,7 +168,7 @@ foldUntil chain errh x = do
     Right x' -> foldUntil chain errh x'
     Left (ctx, err) -> case shrink err of
       Right e -> throwErr (ctx, e)
-      Left e -> errh x e ctx
+      Left e  -> errh x e ctx
 
 type family set1 :< set2 :: Constraint where
   '[] :< set2 = ()
