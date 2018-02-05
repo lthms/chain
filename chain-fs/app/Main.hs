@@ -12,9 +12,8 @@ readPrintFile path =
   recoverManyWith @[Fs.AccessError, Fs.IllegalOperation] @Fs.DescriptiveError
     (do achieve ("read " ++ path ++ " and print its content to stdout") $ do
             f <- Fs.openFile path Fs.ReadMode
-            repeatUntil @(Fs.EoF)
-              (Fs.getLine f >>= liftIO . print)
-              (\_ _ -> liftIO $ putStrLn "%EOF"))
+            repeatUntil' @(Fs.EoF)
+              (Fs.getLine f >>= liftIO . print))
     (\e ctx -> do
         liftIO . putStrLn $ Fs.describe e
         liftIO $ putStrLn "stack:"
