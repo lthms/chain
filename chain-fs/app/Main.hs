@@ -7,7 +7,7 @@ module Main where
 
 import           Control.Monad               (forever)
 import           Control.Monad.Chain
-import           Control.Monad.Chain.Console
+import           Control.Monad.Chain.Console as Console
 import qualified Control.Monad.Chain.Fs      as Fs
 import           Control.Monad.IO.Class
 import           Data.Text                   (Text, append, pack)
@@ -19,11 +19,11 @@ readPrintFile path =
     (achieve ("read " `append` pack path `append` " and print its content to stdout") $ do
          f <- Fs.openFile path Fs.ReadMode
          repeatUntil' @Fs.EoF
-           (Fs.getLine f >>= echo))
+           (Fs.getLine f >>= Console.echo))
     (\e ctx -> do
-        echo $ pack (Fs.describe e) `append` "\n"
-        echo "stack:\n"
-        mapM_ (\entry -> echo $ "* " `append` entry `append` "\n") ctx)
+        Console.log $ pack (Fs.describe e) `append` "\n"
+        Console.log "stack:\n"
+        mapM_ (\entry -> Console.log $ "* " `append` entry `append` "\n") ctx)
 
 main :: IO ()
 main = runResultT $
