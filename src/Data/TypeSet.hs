@@ -93,23 +93,3 @@ instance Split set set' => Split (e:set) set' where
   split (Next x) = case split @set @set' x of
     Right x -> Right x
     Left x  -> Left $ Next x
-
-type family Map set (f :: * -> *) :: [*] where
-  Map (e:set) f = f e:Map set f
-  Map '[] _ = '[]
-
-newtype Into a e = Into { into :: e -> a
-                        }
-type Intos set a = AllOf (Map set (Into a))
-
-proj' :: OneOf set -> Intos set a -> a
-proj' (Sel e)  (Push f _) = into f e
-proj' (Next x) (Push _ r) = proj' x r
-
-(<.>) :: (e -> a) -> AllOf set -> AllOf (Into a e:set)
-f <.> h = Push (Into f) h
-
-(<->) :: (e -> a) -> (e' -> a) -> AllOf [Into a e, Into a e']
-f <-> f' = Push (Into f) (Push (Into f') Nop)
-
-infixr 7 <.>

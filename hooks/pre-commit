@@ -1,9 +1,18 @@
 #!/bin/sh
 
+echo "[*] Start tests suites"
+
+stack test --coverage
+if [ $? -ne 0 ]; then
+    exit 1
+fi
+
+echo "[*] Enforce coding style"
+
 CHANGED_HS="$(git diff --cached --name-only --diff-filter=ACM | egrep "\.hs$" || true)"
 
 for f in ${CHANGED_HS}; do
-    echo "[*] ${f}"
+    echo "[**] ${f}"
 
     t=$(mktemp)
     git show ":${f}" > "${t}"
