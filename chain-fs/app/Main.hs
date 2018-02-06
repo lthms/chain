@@ -1,23 +1,31 @@
-{-# LANGUAGE DataKinds        #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE TypeApplications      #-}
 module Main where
 
-import           Control.Monad          (forever)
+import           Control.Monad               (forever)
 import           Control.Monad.Chain
-import qualified Control.Monad.Chain.Fs as Fs
+import           Control.Monad.Chain.Console
+import qualified Control.Monad.Chain.Fs      as Fs
 import           Control.Monad.IO.Class
+import           Data.Text                   (Text, append, pack)
+import           System.Exit
 
-readPrintFile :: FilePath -> ResultT String err IO ()
+readPrintFile :: (Contains err ConsoleError) => FilePath -> ResultT Text err IO ()
 readPrintFile path =
-  recoverManyWith @[Fs.AccessError, Fs.IllegalOperation] @Fs.DescriptiveError
-    (achieve ("read " ++ path ++ " and print its content to stdout") $ do
+  recoverManyWith @[Fs.AccessError, Fs.OperationError] @DescriptiveError
+    (achieve ("read " `append` pack path `append` " and print its content to stdout") $ do
          f <- Fs.openFile path Fs.ReadMode
          repeatUntil' @Fs.EoF
-           (Fs.getLine f >>= liftIO . print))
+           (Fs.getLine f >>= echo))
     (\e ctx -> do
-        liftIO . putStrLn $ Fs.describe e
-        liftIO $ putStrLn "stack:"
-        liftIO $ print ctx)
+        echo $ pack (Fs.describe e) `append` "\n"
+        echo "stack:\n"
+        mapM_ (\entry -> echo $ "* " `append` entry `append` "\n") ctx)
 
 main :: IO ()
-main = runResultT $ readPrintFile "hi"
+main = runResultT $
+  recover @ConsoleError (readPrintFile "hi")
+                        (\_ _ -> liftIO $ exitWith (ExitFailure 1))

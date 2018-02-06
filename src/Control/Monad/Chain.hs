@@ -51,6 +51,7 @@ module Control.Monad.Chain
     , (+>)
     , closeFunction
     , HaveInstance(..)
+    , DescriptiveError(..)
     ) where
 
 import           Control.Monad.Except
@@ -251,3 +252,6 @@ eitherToExcept :: (MonadError e m)
                => m a
                -> ResultT msg err m (Either e a)
 eitherToExcept m = lift ((Right <$> m) `catchError` (pure . Left))
+
+class DescriptiveError err where
+  describe :: err -> String
