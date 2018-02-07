@@ -17,8 +17,7 @@ source-repository head
 
 library
   exposed-modules:   Control.Monad.Chain
-                   , Data.TypeSet
-  other-modules:
+  other-modules:     Data.TypeSet
   hs-source-dirs:    src
   build-depends:     base >=4.7 && <5
                    , mtl
