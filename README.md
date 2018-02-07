@@ -1,15 +1,45 @@
-# chain.hs
+# chain
 
-An experiment to implement the Rust `error-chain` crate in Haskell, with a
-dedicate Monad and some facilities to work with several error types.
+This haskell package started as an experiment to implement a Haskell-flavour
+[`error-chain`](https://crates.io/crates/error-chain). Its result is `ResultT`,
+a parameterised Monad which implements an extensible, type-safe error-handling.
+
+## In a Nutshell
+
+A typical monadic function which lives inside the `ResultT` monad will have a
+type signature which looks like that:
+
+```haskell
+function :: ('[Err1, Err2] :| err, Monad m)
+        => a -> b -> ResultT msg err m c
+```
+
+`'[Err1, Err2] :| err` means `function` may raise an error of type `Err1` or
+`Err2` while it computes a result of type `c`. The computation is done within
+the monad `m`, that is `ResultT` can be part of a monad stack a la
+mtl. `ResultT` is **not** an alternative to mtl, as `Eff` can be. It is a more
+flexible `EitherT`.
+
+To escape the `ResultT` package means using the `runResultT` function, whose
+type signature is:
+
+```haskell
+runResultT :: ResultT msg '[] m a -> m a
+```
+
+`runResultT` only accepts empty row of errors (`'[]`). This obliges you to
+handle your error. The package provides several functions to that end.
 
 ## Status
 
 This is still a big “work in progress” project. You can have a look at [this
 blogpost](http://lthms.xyz/blog/extensible-type-safe-error-handling) for an
-introduction to the `ResultT` monad as implemented in this package.
+—already a bit out-dated— introduction to the `ResultT` monad.
 
 ## References
+
+This package could not have been written without the works of other talented
+programmers, including (but not limited to):
 
 - The [freer](https://hackage.haskell.org/package/freer) and
   [extensible-effects](https://hackage.haskell.org/package/extensible-effects)
