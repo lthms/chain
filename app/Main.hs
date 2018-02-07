@@ -3,6 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeOperators         #-}
 
 module Main where
 
@@ -11,7 +12,7 @@ import           Control.Monad.State
 
 type ErrIO err = ResultT String err (StateT Int IO)
 
-myInnerError :: (Contains err Bool) => ErrIO err ()
+myInnerError :: ('[Bool] :| err) => ErrIO err ()
 myInnerError = put 1 >> abort True
 
 myErrorFunc :: ErrIO err ()

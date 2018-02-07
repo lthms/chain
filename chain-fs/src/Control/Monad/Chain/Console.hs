@@ -1,6 +1,8 @@
+{-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeOperators         #-}
 
 module Control.Monad.Chain.Console
   ( echo
@@ -25,7 +27,7 @@ instance DescriptiveError ConsoleError where
   describe StdInError  = "Could not write to stderr"
   describe StdErrError = "Could not read from stdin"
 
-printOrConsoleError :: (Contains err ConsoleError, MonadIO m)
+printOrConsoleError :: ('[ConsoleError] :| err, MonadIO m)
                     => Handle
                     -> Text
                     -> ConsoleError
@@ -35,12 +37,12 @@ printOrConsoleError handle msg err =
     (Fs.put handle msg)
     (\_ _ -> abort err)
 
-echo :: (Contains err ConsoleError, MonadIO m)
+echo :: ('[ConsoleError] :| err, MonadIO m)
      => Text
      -> ResultT msg err m ()
 echo msg = printOrConsoleError stdout msg StdOutError
 
-log :: (Contains err ConsoleError, MonadIO m)
+log :: ('[ConsoleError] :| err, MonadIO m)
     => Text
     -> ResultT msg err m ()
 log msg = printOrConsoleError stderr msg StdErrError

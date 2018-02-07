@@ -3,6 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeOperators         #-}
 module Main where
 
 import           Control.Monad               (forever)
@@ -13,7 +14,7 @@ import           Control.Monad.IO.Class
 import           Data.Text                   (Text, append, pack)
 import           System.Exit
 
-readPrintFile :: (Contains err ConsoleError) => FilePath -> ResultT Text err IO ()
+readPrintFile :: ('[ConsoleError] :| err) => FilePath -> ResultT Text err IO ()
 readPrintFile path =
   recoverManyWith @[Fs.AccessError, Fs.OperationError] @DescriptiveError
     (achieve ("read " `append` pack path `append` " and print its content to stdout") $ do

@@ -49,7 +49,7 @@ instance DescriptiveError OperationError where
 trySystemIO :: (MonadIO m) => IO a -> m (Either IOError a)
 trySystemIO act = liftIO $ handle (pure . Left) $ Right <$> act
 
-openFile :: (Contains err AccessError, MonadIO m)
+openFile :: ('[AccessError] :| err, MonadIO m)
          => FilePath -> IO.IOMode -> ResultT msg err m IO.Handle
 openFile path mode = do
   h <- trySystemIO $ IO.openFile path mode
@@ -70,7 +70,7 @@ closeFile :: (MonadIO m)
           -> ResultT msg err m ()
 closeFile h = liftIO $ IO.hClose h
 
-getLine :: ('[OperationError, EoF] :< err, MonadIO m)
+getLine :: ('[OperationError, EoF] :| err, MonadIO m)
         => IO.Handle
         -> ResultT msg err m Text
 getLine h = do
@@ -86,7 +86,7 @@ getLine h = do
       | IO.isIllegalOperation err = abort IllegalRead
       | otherwise = error $ show err ++ "\nnote: According to System.IO documentation, this should not happen"
 
-put :: ('[OperationError] :< err, MonadIO m)
+put :: ('[OperationError] :| err, MonadIO m)
     => IO.Handle
     -> Text
     -> ResultT msg err m ()

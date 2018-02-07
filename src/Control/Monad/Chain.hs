@@ -2,6 +2,7 @@
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -46,8 +47,7 @@ module Control.Monad.Chain
     , exceptAbort
       -- * Set of Errors
     , OneOf
-    , Contains
-    , (:<)
+    , (:|)
     , (+>)
     , closeFunction
     , HaveInstance(..)
@@ -139,7 +139,7 @@ achieve msg chain  = do
 (<?>) = flip achieve
 
 pickError :: forall e err msg m a.
-             ( Monad m, Shrink e err, Contains err e)
+             ( Monad m, Shrink e err, '[e] :| err)
           => (e -> [msg] -> ResultT msg (Remove err e) m a)
           -> ResultT msg err m a
           -> ResultT msg (Remove err e) m a
@@ -186,9 +186,9 @@ foldUntil' :: forall e err msg m a.
            -> ResultT msg err m a
 foldUntil' x chain = foldUntil @e x chain $ \x _ _ -> pure x
 
-type family set1 :< set2 :: Constraint where
-  '[] :< set2 = ()
-  (e:rst) :< set2 = (Contains set2 e, rst :< set2)
+type family set1 :| set2 :: Constraint where
+  '[] :| set2 = ()
+  (e:rst) :| set2 = (Contains set2 e, rst :| set2)
 
 -- | Abort the current computation and raise an error to describe the reason
 --
@@ -196,29 +196,29 @@ type family set1 :< set2 :: Constraint where
 --   shortcut. The rest of the monadic computation is not executed, and the
 --   error is transmitted to the caller computation. Using the 'recover',
 --   'recoverWhile' or 'recoverMany' functions to stop the chain.
-abort :: (Contains err e, Monad m) => e -> ResultT msg err m a
+abort :: ('[e] :| err, Monad m) => e -> ResultT msg err m a
 abort e = throwErr ([], inj e)
 
-orAbortM :: (Contains err e, Monad m)
+orAbortM :: ('[e] :| err, Monad m)
          => m (Maybe a)
          -> e
          -> ResultT msg err m a
 orAbortM c e = lift c >>= (`orAbort` e)
 
-orAbort :: (Contains err e, Monad m)
+orAbort :: ('[e] :| err, Monad m)
         => Maybe a
         -> e
         -> ResultT msg err m a
 orAbort (Just x) e = pure x
 orAbort _        e = abort e
 
-eitherAbort :: (Contains err e, Monad m)
+eitherAbort :: ('[e] :| err, Monad m)
             => Either e a
             -> ResultT msg err m a
 eitherAbort (Right x) = pure x
 eitherAbort (Left e)  = abort e
 
-exceptAbort :: (Contains err e, MonadError e m)
+exceptAbort :: ('[e] :| err, MonadError e m)
             => m a
             -> ResultT msg err m a
 exceptAbort c = eitherToExcept c >>= eitherAbort
