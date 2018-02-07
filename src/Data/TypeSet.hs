@@ -58,13 +58,15 @@ instance (Shrink' set e set') => Shrink' (any:set) e (any:set') where
     Left x  -> Left x
     Right x -> Right (Next x)
 
-(+>) :: (e -> a) -> (OneOf set -> a) -> (OneOf (e:set) -> a)
-f +> fset = \case
+newtype Handler set a = Handler (OneOf set -> a)
+
+(+>) :: (e -> a) -> Handler set a -> Handler (e:set) a
+f +> (Handler fset) = Handler $ \case
   Sel x -> f x
   Next x -> fset x
 
-closeFunction :: OneOf '[] -> a
-closeFunction _ = error "should not be possible, as OneOf '[] is inhabited"
+closeFunction :: Handler '[] a
+closeFunction = Handler $ \_ -> error "should not be possible, as OneOf '[] is inhabited"
 
 infixr +>
 

@@ -46,7 +46,7 @@ module Control.Monad.Chain
     , eitherAbort
     , exceptAbort
       -- * Set of Errors
-    , OneOf
+    , Handler
     , (:|)
     , (+>)
     , closeFunction
@@ -102,18 +102,18 @@ recover = flip pickError
 recoverMany :: forall plus err m msg a.
                (Split plus err, Monad m)
             => ResultT msg (Join plus err) m a
-            -> (OneOf plus -> [msg] -> ResultT msg err m a)
+            -> Handler plus ([msg] -> ResultT msg err m a)
             -> ResultT msg err m a
-recoverMany chain f = do
+recoverMany chain (Handler f) = do
   res <- lift $ gRunResultT chain
   case res of
     Right x -> pure x
     Left (ctx, x) -> case split @plus @err x of
       Right x -> throwErr (ctx, x)
-      Left x  -> f x ctx
+      Left e  -> f e ctx
 
 class HaveInstance c set where
-  generalize :: (forall e. c e => e -> a) -> (OneOf set -> a)
+  generalize :: (forall e. c e => e -> a) -> Handler set a
 
 instance HaveInstance c '[] where
   generalize _ = closeFunction
