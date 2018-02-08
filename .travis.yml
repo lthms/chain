@@ -1,0 +1,37 @@
+language: generic
+
+sudo: false
+
+cache:
+  directories:
+    - $HOME/.stack
+
+before_install:
+  - mkdir -p ~/.local/bin
+  - export PATH=~/.local/bin:$PATH
+  - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+  - chmod a+x ~/.local/bin/stack
+
+install:
+  - stack --no-terminal test --only-dependencies
+  - stack --no-terminal install stylish-haskell hlint
+
+script:
+  - find app src test chain-fs/src chain-fs/app -name '*.hs' -exec stack --no-terminal exec stylish-haskell -- -i {} \;
+  - git status
+  - git status | grep "nothing to commit"
+  - stack --no-terminal exec hlint -- lint src/
+  - stack --no-terminal exec hlint -- lint app/
+  - stack --no-terminal exec hlint -- lint test/
+  - stack --no-terminal exec hlint -- lint chain-fs/src/
+  - stack --no-terminal exec hlint -- lint chain-fs/app/
+  - stack --no-terminal test --coverage
+  - stack --no-terminal haddock --haddock-arguments "--odir=docs"
+
+.deploy:
+  provider: pages
+  skip-cleanup: true
+  github-token: $GITHUB_TOKEN
+  on:
+    branch: master
+  local-dir: docs
