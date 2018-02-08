@@ -36,6 +36,10 @@ This is still a big “work in progress” project. You can have a look at [this
 blogpost](http://lthms.xyz/blog/extensible-type-safe-error-handling) for an
 —already a bit out-dated— introduction to the `ResultT` monad.
 
+| Service | Status |
+| ------- | ------ |
+| Travis  | [![Build Status](https://travis-ci.org/lethom/chain.svg?branch=master)](https://travis-ci.org/lethom/chain) |
+
 ## References
 
 This package could not have been written without the works of other talented
