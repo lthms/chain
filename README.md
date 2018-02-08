@@ -4,6 +4,10 @@ This haskell package started as an experiment to implement a Haskell-flavour
 [`error-chain`](https://crates.io/crates/error-chain). Its result is `ResultT`,
 a parameterised Monad which implements an extensible, type-safe error-handling.
 
+This package is released on GitHub as an open source software, but it is not
+distributed under any particular licence, and therefore is not (yet) a free
+software. Hopefully, this will be changed before publishing `chain` to Hackage.
+
 ## In a Nutshell
 
 A typical monadic function which lives inside the `ResultT` monad will have a
