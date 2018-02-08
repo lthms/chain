@@ -1,36 +1,41 @@
 #!/bin/sh
 
-echo "[*] Start tests suites"
-
-stack test --coverage
-if [ $? -ne 0 ]; then
-    exit 1
-fi
-
-echo "[*] Enforce coding style"
-
 CHANGED_HS="$(git diff --cached --name-only --diff-filter=ACM | egrep "\.hs$" || true)"
 
-for f in ${CHANGED_HS}; do
-    echo "[**] ${f}"
+if [[ -n "${CHANGED_HS}" ]]; then
+    echo "[*] Start tests suites"
 
-    t=$(mktemp)
-    git show ":${f}" > "${t}"
-
-    stack exec hlint "${t}"
+    stack test --coverage
 
     if [ $? -ne 0 ]; then
-        rm "${t}"
         exit 1
     fi
 
-    if [[ -n "$(stack exec stylish-haskell ${t} | diff /proc/self/fd/0 "${t}")" ]]; then
-        echo "Applying stylish-haskell (you need to run 'git add -p' to stage the change)"
-        stack exec stylish-haskell -- -i "${f}"
+    echo "[*] Enforce coding style"
+
+    for f in ${CHANGED_HS}; do
+        echo "[**] ${f}"
+
+        t=$(mktemp)
+        git show ":${f}" > "${t}"
+
+        stack exec hlint "${t}"
+
+        if [ $? -ne 0 ]; then
+            rm "${t}"
+            exit 1
+        fi
+
+        if [[ -n "$(stack exec stylish-haskell ${t} | diff /proc/self/fd/0 "${t}")" ]]; then
+            echo "Applying stylish-haskell (you need to run 'git add -p' to stage the change)"
+            stack exec stylish-haskell -- -i "${f}"
+
+            rm "${t}"
+            exit 1
+        fi
 
         rm "${t}"
-        exit 1
-    fi
-
-    rm "${t}"
-done
+    done
+else
+    echo "[*] Skipping tests as no Haskell file has changed"
+fi
