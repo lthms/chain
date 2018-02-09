@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeOperators         #-}
 
@@ -13,24 +15,26 @@ module Control.Monad.Chain.Console
 import           Control.Monad.Chain
 import qualified Control.Monad.Chain.Fs as Fs
 import           Control.Monad.IO.Class
+import           Data.ByteString        (ByteString)
 import           Data.Text              (Text)
 import qualified Data.Text.IO           as TIO
 import           Prelude                hiding (log)
 import           System.IO              (Handle, stderr, stdout)
+import qualified System.IO              as IO
 
-data ConsoleError = StdOutError
+data ConsoleError = StdErrError
+                  | StdOutError
                   | StdInError
-                  | StdErrError
 
 instance DescriptiveError ConsoleError where
-  describe StdOutError = "Could not write to stdout"
-  describe StdInError  = "Could not write to stderr"
-  describe StdErrError = "Could not read from stdin"
+  describe StdOutError = "Could not write text to stdout"
+  describe StdErrError = "Could not write text to stderr"
+  describe StdInError  = "Could not read text from stdin"
 
-printOrConsoleError :: ('[ConsoleError] :| err, MonadIO m)
-                    => Handle
+printOrConsoleError :: ('[e] :| err, MonadIO m)
+                    => Fs.Handle Text
                     -> Text
-                    -> ConsoleError
+                    -> e
                     -> ResultT msg err m ()
 printOrConsoleError handle msg err =
   recover @Fs.OperationError
@@ -40,9 +44,9 @@ printOrConsoleError handle msg err =
 echo :: ('[ConsoleError] :| err, MonadIO m)
      => Text
      -> ResultT msg err m ()
-echo msg = printOrConsoleError stdout msg StdOutError
+echo msg = printOrConsoleError Fs.stdout msg StdOutError
 
 log :: ('[ConsoleError] :| err, MonadIO m)
     => Text
     -> ResultT msg err m ()
-log msg = printOrConsoleError stderr msg StdErrError
+log msg = printOrConsoleError Fs.stderr msg StdErrError

@@ -28,11 +28,12 @@ module Control.Monad.Chain
     , abort
     , achieve
     , (<?>)
-    , witness
+    , finally
     , recoverWhile
     , recover
     , recoverMany
     , recoverManyWith
+    , recoverManyDescriptive
     , repeatUntil
     , repeatUntil'
     , foldUntil
@@ -85,15 +86,17 @@ runResultT chain =
 runResult :: Result msg '[] a -> a
 runResult = runIdentity . runResultT
 
-witness :: (Monad m)
+finally :: (Monad m)
         => ResultT msg err m a
-        -> ([msg] -> ResultT msg '[] m ())
+        -> ResultT msg '[] m ()
         -> ResultT msg err m a
-witness chain f =
+finally chain final =
   lift (gRunResultT chain) >>= \case
-    Right x -> pure x
+    Right x -> do
+      lift $ runResultT final
+      pure x
     Left (ctx, e) -> do
-      lift $ runResultT (f ctx)
+      lift $ runResultT final
       throwErr (ctx, e)
 
 recoverWhile :: forall e m msg err a.
@@ -133,12 +136,19 @@ instance HaveInstance c '[] where
 instance (HaveInstance c rst, c e) => HaveInstance c (e:rst) where
   generalize (f :: forall e. c e => e -> a) = f +> generalize @c @rst @a f
 
-recoverManyWith :: forall plus c m msg err a.
-                   (Monad m, Split plus err, HaveInstance c plus)
+recoverManyWith :: forall plus c err msg m a.
+                   (HaveInstance c plus, Split plus err, Monad m)
                 => ResultT msg (Join plus err) m a
                 -> (forall e. c e => e -> [msg] -> ResultT msg err m a)
                 -> ResultT msg err m a
 recoverManyWith chain f = recoverMany @plus chain (generalize @c @plus @([msg] -> ResultT msg err m a) f)
+
+recoverManyDescriptive :: forall plus err msg m a.
+                          (HaveInstance DescriptiveError plus, Split plus err, Monad m)
+                       => ResultT msg (Join plus err) m a
+                       -> (forall e. DescriptiveError e => e -> [msg] -> ResultT msg err m a)
+                       -> ResultT msg err m a
+recoverManyDescriptive = recoverManyWith @plus @DescriptiveError
 
 -- | Declaratively describe the purpose of a computation.
 --

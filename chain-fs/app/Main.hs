@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeOperators         #-}
 module Main where
@@ -14,18 +15,29 @@ import           Control.Monad.IO.Class
 import           Data.Text                   (Text, append, pack)
 import           System.Exit
 
-readPrintFile :: ('[ConsoleError] :| err) => FilePath -> ResultT Text err IO ()
+data CatError = CatError
+
+instance DescriptiveError CatError where
+  describe _ = "Could not perform a proper cat"
+
+readPrintFile :: ('[CatError, Console.ConsoleError] :| err) => FilePath -> ResultT Text err IO ()
 readPrintFile path =
-  recoverManyWith @[Fs.AccessError, Fs.OperationError] @DescriptiveError
+  recoverManyDescriptive @[Fs.AccessError, Fs.OperationError, Console.ConsoleError]
     (achieve ("read " `append` pack path `append` " and print its content to stdout") $
-        Fs.withFile path Fs.ReadMode $
+        Fs.withFile @Text path Fs.ReadMode $
           \f -> repeatUntil' @Fs.EoF (Fs.getLine f >>= Console.echo))
-    (\e ctx -> do
-        Console.log $ pack (Fs.describe e) `append` "\n"
-        Console.log "stack:\n"
-        mapM_ (\entry -> Console.log $ "* " `append` entry `append` "\n") ctx)
+    printErrorStack
+
+  where printErrorStack e ctx = do
+          Console.log $ pack (Fs.describe e) `append` "\n"
+          Console.log "stack:\n"
+          mapM_ (\entry -> Console.log $ "* " `append` entry `append` "\n") ctx
+          abort CatError
 
 main :: IO ()
 main = runResultT $
-  recover @ConsoleError (readPrintFile "hi")
-                        (\_ _ -> liftIO $ exitWith (ExitFailure 1))
+  recoverMany @[CatError, Console.ConsoleError]
+     (readPrintFile "hi") $
+        (\_ _ -> liftIO . exitWith $ ExitFailure 1) -- we have printed the reason we failed
+     +> (\_ _ -> liftIO . exitWith $ ExitFailure 2) -- we could not
+     +> closeFunction
