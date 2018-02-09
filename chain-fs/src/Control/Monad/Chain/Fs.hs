@@ -5,7 +5,8 @@
 
 module Control.Monad.Chain.Fs
     ( -- * Functions
-      openFile
+      withFile
+    , openFile
     , closeFile
     , getLine
     , put
@@ -48,6 +49,15 @@ instance DescriptiveError OperationError where
 
 trySystemIO :: (MonadIO m) => IO a -> m (Either IOError a)
 trySystemIO act = liftIO $ handle (pure . Left) $ Right <$> act
+
+withFile :: ('[AccessError] :| err, MonadIO m)
+         => FilePath
+         -> IO.IOMode
+         -> (IO.Handle -> ResultT msg err m a)
+         -> ResultT msg err m a
+withFile path mode f = do
+  h <- openFile path mode
+  f h `witness` \_ -> closeFile h
 
 openFile :: ('[AccessError] :| err, MonadIO m)
          => FilePath -> IO.IOMode -> ResultT msg err m IO.Handle

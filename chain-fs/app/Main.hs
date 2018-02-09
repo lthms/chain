@@ -17,10 +17,9 @@ import           System.Exit
 readPrintFile :: ('[ConsoleError] :| err) => FilePath -> ResultT Text err IO ()
 readPrintFile path =
   recoverManyWith @[Fs.AccessError, Fs.OperationError] @DescriptiveError
-    (achieve ("read " `append` pack path `append` " and print its content to stdout") $ do
-         f <- Fs.openFile path Fs.ReadMode
-         repeatUntil' @Fs.EoF
-           (Fs.getLine f >>= Console.echo))
+    (achieve ("read " `append` pack path `append` " and print its content to stdout") $
+        Fs.withFile path Fs.ReadMode $
+          \f -> repeatUntil' @Fs.EoF (Fs.getLine f >>= Console.echo))
     (\e ctx -> do
         Console.log $ pack (Fs.describe e) `append` "\n"
         Console.log "stack:\n"

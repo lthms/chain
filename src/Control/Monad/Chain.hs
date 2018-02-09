@@ -28,6 +28,7 @@ module Control.Monad.Chain
     , abort
     , achieve
     , (<?>)
+    , witness
     , recoverWhile
     , recover
     , recoverMany
@@ -83,6 +84,17 @@ runResultT chain =
 
 runResult :: Result msg '[] a -> a
 runResult = runIdentity . runResultT
+
+witness :: (Monad m)
+        => ResultT msg err m a
+        -> ([msg] -> ResultT msg '[] m ())
+        -> ResultT msg err m a
+witness chain f =
+  lift (gRunResultT chain) >>= \case
+    Right x -> pure x
+    Left (ctx, e) -> do
+      lift $ runResultT (f ctx)
+      throwErr (ctx, e)
 
 recoverWhile :: forall e m msg err a.
                 (Monad m)
