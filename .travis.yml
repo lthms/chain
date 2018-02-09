@@ -26,7 +26,8 @@ script:
   - stack --no-terminal exec hlint -- lint chain-fs/src/
   - stack --no-terminal exec hlint -- lint chain-fs/app/
   - stack --no-terminal test --coverage
-  - stack --no-terminal haddock --haddock-arguments "--odir=docs"
+  - stack --no-terminal haddock
+  - cp -r $(stack path --local-install-root)/doc docs
 
 deploy:
   provider: pages
