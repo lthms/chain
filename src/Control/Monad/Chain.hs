@@ -215,7 +215,11 @@ type family set1 :| set2 :: Constraint where
 --   shortcut. The rest of the monadic computation is not executed, and the
 --   error is transmitted to the caller computation. Using the 'recover',
 --   'recoverWhile' or 'recoverMany' functions to stop the chain.
-abort :: ('[e] :| err, Monad m) => e -> ResultT msg err m a
+abort :: ('[e] :| err, Monad m)
+      => e -- ^ A symbolic value which describes why the computation would not
+           --   be completed. This symbolic value is of a type inside the row of
+           --   errors.
+      -> ResultT msg err m a
 abort e = throwErr ([], inj e)
 
 orAbortM :: ('[e] :| err, Monad m)
