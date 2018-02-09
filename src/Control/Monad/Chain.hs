@@ -128,13 +128,32 @@ recoverManyWith :: forall plus c m msg err a.
                 -> ResultT msg err m a
 recoverManyWith chain f = recoverMany @plus chain (generalize @c @plus @([msg] -> ResultT msg err m a) f)
 
-achieve :: (Monad m) => msg -> ResultT msg err m a -> ResultT msg err m a
+-- | Declaratively describe the purpose of a computation.
+--
+--   Using achieve in various places, it becomes possible, once an error is
+--   raised, to determine more easily its context. 'achieve' has an operator
+--   counterpart: '(<?>)'. The former should be used to contextualise a
+--   do-block, whereas the latter can be prefered for monadic function calls.
+--
+--   > achieve "try to get configuration" $ do
+--   >     f <- readParseFile "main" <?> "read main file"
+--   >     f' <- readParseFile "aux" <?> "read aux file"
+--   >     pure $ buildConfiguration f f'
+--
+--   These contextual messages are made available, in addition to the error,
+--   when using functions such as 'recover', 'recoverMany', 'repeatUntil' etc.
+achieve :: (Monad m)
+        => msg -- ^ A description of the computation, to act as context in case
+               --   of error.
+        -> ResultT msg err m a
+        -> ResultT msg err m a
 achieve msg chain  = do
   res <- lift $ gRunResultT chain
   case res of
     Left (ctx, err) -> throwErr (msg:ctx, err)
     Right x         -> pure x
 
+-- | See 'achieve'.
 (<?>) :: (Monad m) => ResultT msg err m a -> msg -> ResultT msg err m a
 (<?>) = flip achieve
 
