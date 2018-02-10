@@ -42,7 +42,7 @@ blogpost](http://lthms.xyz/blog/extensible-type-safe-error-handling) for an
 
 | Service | Status |
 | ------- | ------ |
-| Travis  | [![Build Status](https://travis-ci.org/lethom/chain.svg?branch=master)](https://travis-ci.org/lethom/chain) |
+| Travis  | [![Build Status](https://travis-ci.org/lthms/chain.svg?branch=master)](https://travis-ci.org/lethom/chain) |
 
 ## References
 
