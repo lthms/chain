@@ -30,6 +30,12 @@ spec =
       runResult foldShouldWork
         `shouldBe` 5
 
+    it "should allow for nested recovering, and stop for the lowest level" $
+      runResult (recover @Bool (recover @Bool (abort True)
+                                              (\_ x -> pure "inside"))
+                               (\_ y -> pure "outside"))
+        `shouldBe` "inside"
+
 -- Tests functions
 foldShouldWork :: Result msg err Int
 foldShouldWork =
