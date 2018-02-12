@@ -27,12 +27,12 @@ class Contains set e where
   inj :: e -> OneOf set
   proj :: OneOf set -> Maybe e
 
-instance {-# OVERLAPPABLE #-} Contains (e:set) e where
+instance {-# OVERLAPPING #-} Contains (e:set) e where
   inj = Sel
   proj (Sel x)  = Just x
   proj (Next _) = Nothing
 
-instance {-# OVERLAPS #-} (Contains set e) => Contains (any:set) e where
+instance {-# OVERLAPPABLE #-} (Contains set e) => Contains (any:set) e where
   inj = Next . inj
   proj (Sel _)  = Nothing
   proj (Next x) = proj x
