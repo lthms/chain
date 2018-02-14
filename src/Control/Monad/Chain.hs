@@ -180,7 +180,7 @@ achieve msg chain  = do
 (<?>) = flip achieve
 
 pickError :: forall e err msg m a.
-             ( Monad m, Shrink e err, '[e] :| err)
+             ('[e] :| err, Monad m)
           => (e -> [msg] -> ResultT msg (Remove err e) m a)
           -> ResultT msg err m a
           -> ResultT msg (Remove err e) m a
@@ -188,7 +188,7 @@ pickError f (ResultT chain) = do
   res <- lift $ runExceptT chain
   case res of
     Left (ctx, err) ->
-      case shrink err of
+      case proj err of
         Left e    -> f e ctx
         Right err -> throwErr (ctx, err)
     Right x -> pure x
@@ -216,7 +216,7 @@ foldUntil x chain errh = do
   res <- lift $ gRunResultT (chain x)
   case res of
     Right x' -> foldUntil x' chain errh
-    Left (ctx, err) -> case shrink err of
+    Left (ctx, err) -> case proj err of
       Right e -> throwErr (ctx, e)
       Left e  -> errh x e ctx
 

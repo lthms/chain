@@ -1,4 +1,3 @@
-{-# LANGUAGE AllowAmbiguousTypes   #-}
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -11,7 +10,6 @@
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
-{-# LANGUAGE UndecidableInstances  #-}
 
 module Data.TypeSet where
 
@@ -21,42 +19,25 @@ data OneOf set where
   Next :: OneOf set -> OneOf (e:set)
   Sel  :: e -> OneOf (e:set)
 
-data Nat = Z | S Nat
-
-class Contains set e where
-  inj :: e -> OneOf set
-  proj :: OneOf set -> Maybe e
-
-instance {-# OVERLAPPING #-} Contains (e:set) e where
-  inj = Sel
-  proj (Sel x)  = Just x
-  proj (Next _) = Nothing
-
-instance {-# OVERLAPPABLE #-} (Contains set e) => Contains (any:set) e where
-  inj = Next . inj
-  proj (Sel _)  = Nothing
-  proj (Next x) = proj x
-
-type family Remove (set :: [*]) (e :: *) :: [*] where
-  Remove '[] e = '[]
+type family Remove set e :: [*] where
   Remove (e:set) e = set
   Remove (any:set) e = any:Remove set e
 
-class Shrink' set e set' where
-  shrink' :: OneOf set -> Either e (OneOf set')
+class Contains set e where
+  inj :: e -> OneOf set
+  proj :: OneOf set -> Either e (OneOf (Remove set e))
 
-instance Shrink' '[] e '[] where
-  shrink' = error "should not be called, as OneOf '[] is inhabited"
+instance {-# OVERLAPPING #-} Contains (e:set) e where
+  inj = Sel
+  proj (Sel x)  = Left x
+  proj (Next r) = Right r
 
-instance {-# INCOHERENT #-} Shrink' (e:set) e set where
-  shrink' (Sel x)  = Left x
-  shrink' (Next x) = Right x
-
-instance (Shrink' set e set') => Shrink' (any:set) e (any:set') where
-  shrink' (Sel x) = Right (Sel x)
-  shrink' (Next x) = case shrink' x of
-    Left x  -> Left x
-    Right x -> Right (Next x)
+instance {-# OVERLAPPABLE #-} (Contains set e, Remove (any:set) e ~ (any:Remove set e)) => Contains (any:set) e where
+  inj = Next . inj
+  proj (Sel x)  = Right $ Sel @any @(Remove set e) x
+  proj (Next x) = case proj x of
+    Right x -> Right $ Next @(Remove set e) @any x
+    Left e  -> Left e
 
 newtype Handler set a = Handler (OneOf set -> a)
 
@@ -69,12 +50,6 @@ closeFunction :: Handler '[] a
 closeFunction = Handler $ \_ -> error "should not be possible, as OneOf '[] is inhabited"
 
 infixr +>
-
-class Shrink e set where
-  shrink :: OneOf set -> Either e (OneOf (Remove set e))
-
-instance (Remove set e ~ set', Shrink' set e set') => Shrink e set where
-  shrink = shrink'
 
 data AllOf set where
   Nop :: AllOf '[]
