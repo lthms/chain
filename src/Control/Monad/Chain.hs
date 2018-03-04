@@ -94,15 +94,15 @@ runResult = runIdentity . runResultT
 --   happened.
 finally :: (Monad m)
         => ResultT msg err m a -- ^ The try block
-        -> ResultT msg '[] m () -- ^ The 'finally' block
+        -> ResultT msg err m () -- ^ The 'finally' block
         -> ResultT msg err m a
 finally chain final =
   lift (gRunResultT chain) >>= \case
     Right x -> do
-      lift $ runResultT final
+      final
       pure x
     Left (ctx, e) -> do
-      lift $ runResultT final
+      final
       throwErr (ctx, e)
 
 -- | Temporally allows one given error type by providing an error handler to
