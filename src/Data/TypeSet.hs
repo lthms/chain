@@ -46,8 +46,9 @@ f +> (Handler fset) = Handler $ \case
   Sel x -> f x
   Next x -> fset x
 
-closeFunction :: Handler '[] a
-closeFunction = Handler $ \_ -> error "should not be possible, as OneOf '[] is inhabited"
+-- | Stands for “end of handler”.
+eoh :: Handler '[] a
+eoh = Handler $ pure (error "should not be possible, as OneOf '[] is inhabited")
 
 infixr +>
 

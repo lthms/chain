@@ -40,4 +40,4 @@ main = runResultT $
      (readPrintFile "hi") $
         (\_ _ -> liftIO . exitWith $ ExitFailure 1) -- we have printed the reason we failed
      +> (\_ _ -> liftIO . exitWith $ ExitFailure 2) -- we could not
-     +> closeFunction
+     +> eoh

@@ -51,7 +51,7 @@ module Control.Monad.Chain
     , Handler
     , (:|)
     , (+>)
-    , closeFunction
+    , eoh
     , HaveInstance(..)
     , DescriptiveError(..)
     ) where
@@ -131,7 +131,7 @@ class HaveInstance c set where
   generalize :: (forall e. c e => e -> a) -> Handler set a
 
 instance HaveInstance c '[] where
-  generalize _ = closeFunction
+  generalize _ = eoh
 
 instance (HaveInstance c rst, c e) => HaveInstance c (e:rst) where
   generalize (f :: forall e. c e => e -> a) = f +> generalize @c @rst @a f
