@@ -6,8 +6,8 @@
 
 module Control.Monad.Chain.Fs
     ( -- * Functions
-      withFile
-    , closeFile
+      with
+    , close
     , IO.IOMode(..)
     , FileMode(..)
     , Handle
@@ -26,6 +26,7 @@ import           Control.Monad.Chain
 import           Control.Monad.IO.Class
 import           Data.ByteString        (ByteString)
 import qualified Data.ByteString        as B
+import           Data.String            (IsString)
 import           Data.Text              (Text)
 import qualified Data.Text.IO           as TIO
 import qualified System.IO              as IO
@@ -43,7 +44,7 @@ stderr :: Handle mode
 stderr = Handle IO.stderr
 
 class FileMode mode where
-  openFile :: ('[AccessError] :| err, MonadIO m)
+  open :: ('[AccessError] :| err, MonadIO m)
            => FilePath -> IO.IOMode -> ResultT msg err m (Handle mode)
 
   getLine :: ('[OperationError, EoF] :| err, MonadIO m)
@@ -85,91 +86,54 @@ instance DescriptiveError EoF where
 trySystemIO :: (MonadIO m) => IO a -> m (Either IOError a)
 trySystemIO act = liftIO $ handle (pure . Left) $ Right <$> act
 
-withFile :: (FileMode mode, '[AccessError] :| err, MonadIO m)
-         => FilePath
-         -> IO.IOMode
-         -> (Handle mode -> ResultT msg err m a)
-         -> ResultT msg err m a
-withFile path mode f = do
-  h <- openFile path mode
-  f h `finally` closeFile h
+with :: (FileMode mode, '[AccessError] :| err, MonadIO m)
+     => FilePath
+     -> IO.IOMode
+     -> (Handle mode -> ResultT msg err m a)
+     -> ResultT msg err m a
+with path mode f = do
+  h <- open path mode
+  f h `finally` close h
 
-closeFile :: (MonadIO m)
+close :: (MonadIO m)
           => Handle mode
           -> ResultT msg err m ()
-closeFile (Handle h) = liftIO $ IO.hClose h
+close (Handle h) = liftIO $ IO.hClose h
 
 instance FileMode Text where
-  openFile path mode = do
-    h <- trySystemIO $ IO.openFile path mode
-    case h of
-      Right handle ->
-        pure (Handle handle)
-      Left err ->
-        abortOnIOError err
-      where
-        abortOnIOError err
-          | IO.isAlreadyInUseError err = abort $ AlreadyInUse path
-          | IO.isDoesNotExistError err = abort $ DoesNotExist path
-          | IO.isPermissionError err = abort $ AccessDeny path mode
-          | otherwise = error $ show err ++ "\nnote: According to System.IO documentation, this should not happen"
-
-  getLine (Handle h) = do
-    str <- trySystemIO $ TIO.hGetLine h
-    case str of
-      Right str ->
-        pure str
-      Left err ->
-        abortOnIOError err
-      where
-        abortOnIOError err
-          | IO.isEOFError err = abort EoF
-          | IO.isIllegalOperation err = abort IllegalRead
-          | otherwise = error $ show err ++ "\nnote: According to System.IO documentation, this should not happen"
-
-  get (Handle h) = do
-    str <- trySystemIO $ TIO.hGetContents h
-    case str of
-      Right str ->
-        pure str
-      Left err ->
-        abortOnIOError err
-      where
-        abortOnIOError err
-          | IO.isEOFError err = pure ""
-          | IO.isIllegalOperation err = abort IllegalRead
-          | otherwise = error $ show err ++ "\nnote: According to System.IO documentation, this should not happen"
-
-  put (Handle h) txt = do
-    h <- trySystemIO $ TIO.hPutStr h txt
-    case h of
-      Right _ ->
-        pure ()
-      Left err ->
-        abortOnIOError err
-    where
-      abortOnIOError err
-        | IO.isIllegalOperation err = abort IllegalWrite
-        | IO.isFullError err = abort FullDevice
-        | otherwise = error $ show err ++ "\nnote: According to System.IO documentation, this should not happen"
+  open = gOpen IO.openFile
+  getLine = gGetLine TIO.hGetLine
+  put = gPut TIO.hPutStr
+  get = gGet TIO.hGetContents
 
 instance FileMode ByteString where
-  openFile path mode = do
-    h <- trySystemIO $ IO.openBinaryFile path mode
-    case h of
-      Right handle ->
-        pure (Handle handle)
-      Left err ->
-        abortOnIOError err
-      where
-        abortOnIOError err
-          | IO.isAlreadyInUseError err = abort $ AlreadyInUse path
-          | IO.isDoesNotExistError err = abort $ DoesNotExist path
-          | IO.isPermissionError err = abort $ AccessDeny path mode
-          | otherwise = error $ show err ++ "\nnote: According to System.IO documentation, this should not happen"
+  open = gOpen IO.openBinaryFile
+  getLine = gGetLine B.hGetLine
+  put = gPut B.hPutStr
+  get = gGet B.hGetContents
 
-  getLine (Handle h) = do
-    str <- trySystemIO $ B.hGetLine h
+gOpen :: ('[AccessError] :| err, MonadIO m)
+      => (FilePath -> IO.IOMode -> IO IO.Handle) -> FilePath -> IO.IOMode -> ResultT msg err m (Handle mode)
+gOpen open path mode = do
+  h <- trySystemIO $ open path mode
+  case h of
+    Right handle ->
+      pure (Handle handle)
+    Left err ->
+      abortOnIOError err
+    where
+      abortOnIOError err
+        | IO.isAlreadyInUseError err = abort $ AlreadyInUse path
+        | IO.isDoesNotExistError err = abort $ DoesNotExist path
+        | IO.isPermissionError err = abort $ AccessDeny path mode
+        | otherwise = error $ show err ++ "\nnote: According to System.IO documentation, this should not happen"
+
+gGetLine :: ('[OperationError, EoF] :| err, MonadIO m)
+         => (IO.Handle -> IO mode)
+         -> Handle mode
+         -> ResultT msg err m mode
+gGetLine getLine (Handle h) = do
+    str <- trySystemIO $ getLine h
     case str of
       Right str ->
         pure str
@@ -181,21 +145,30 @@ instance FileMode ByteString where
           | IO.isIllegalOperation err = abort IllegalRead
           | otherwise = error $ show err ++ "\nnote: According to System.IO documentation, this should not happen"
 
-  put (Handle h) txt = do
-    h <- trySystemIO $ B.hPutStr h txt
-    case h of
-      Right _ ->
-        pure ()
-      Left err ->
-        abortOnIOError err
-    where
-      abortOnIOError err
-        | IO.isIllegalOperation err = abort IllegalWrite
-        | IO.isFullError err = abort FullDevice
-        | otherwise = error $ show err ++ "\nnote: According to System.IO documentation, this should not happen"
+gPut :: ('[OperationError] :| err, MonadIO m)
+     => (IO.Handle -> mode -> IO ())
+     -> Handle mode
+     -> mode
+     -> ResultT msg err m ()
+gPut put (Handle h) txt = do
+   h <- trySystemIO $ put h txt
+   case h of
+     Right _ ->
+       pure ()
+     Left err ->
+       abortOnIOError err
+   where
+     abortOnIOError err
+       | IO.isIllegalOperation err = abort IllegalWrite
+       | IO.isFullError err = abort FullDevice
+       | otherwise = error $ show err ++ "\nnote: According to System.IO documentation, this should not happen"
 
-  get (Handle h) = do
-    str <- trySystemIO $ B.hGetContents h
+gGet :: ('[OperationError] :| err, IsString mode, MonadIO m)
+     => (IO.Handle -> IO mode)
+     -> Handle mode
+     -> ResultT msg err m mode
+gGet get (Handle h) = do
+    str <- trySystemIO $ get h
     case str of
       Right str ->
         pure str

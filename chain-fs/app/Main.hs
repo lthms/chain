@@ -24,7 +24,7 @@ readPrintFile :: ('[CatError, Console.ConsoleError] :| err) => FilePath -> Resul
 readPrintFile path =
   recoverManyDescriptive @[Fs.AccessError, Fs.OperationError, Console.ConsoleError]
     (achieve ("read " `append` pack path `append` " and print its content to stdout") $
-        Fs.withFile @Text path Fs.ReadMode $
+        Fs.with @Text path Fs.ReadMode $
           \f -> repeatUntil' @Fs.EoF (Fs.getLine f >>= Console.echo))
     printErrorStack
 
