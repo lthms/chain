@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE TypeOperators         #-}
 
 module Control.Monad.Chain.Fs
@@ -48,6 +49,10 @@ class FileMode mode where
   getLine :: ('[OperationError, EoF] :| err, MonadIO m)
           => Handle mode
           -> ResultT msg err m mode
+
+  get :: ('[OperationError] :| err, MonadIO m)
+      => Handle mode
+      -> ResultT msg err m mode
 
   put :: ('[OperationError] :| err, MonadIO m)
       => Handle mode
@@ -122,6 +127,19 @@ instance FileMode Text where
           | IO.isIllegalOperation err = abort IllegalRead
           | otherwise = error $ show err ++ "\nnote: According to System.IO documentation, this should not happen"
 
+  get (Handle h) = do
+    str <- trySystemIO $ TIO.hGetContents h
+    case str of
+      Right str ->
+        pure str
+      Left err ->
+        abortOnIOError err
+      where
+        abortOnIOError err
+          | IO.isEOFError err = pure ""
+          | IO.isIllegalOperation err = abort IllegalRead
+          | otherwise = error $ show err ++ "\nnote: According to System.IO documentation, this should not happen"
+
   put (Handle h) txt = do
     h <- trySystemIO $ TIO.hPutStr h txt
     case h of
@@ -175,3 +193,16 @@ instance FileMode ByteString where
         | IO.isIllegalOperation err = abort IllegalWrite
         | IO.isFullError err = abort FullDevice
         | otherwise = error $ show err ++ "\nnote: According to System.IO documentation, this should not happen"
+
+  get (Handle h) = do
+    str <- trySystemIO $ B.hGetContents h
+    case str of
+      Right str ->
+        pure str
+      Left err ->
+        abortOnIOError err
+      where
+        abortOnIOError err
+          | IO.isEOFError err = pure ""
+          | IO.isIllegalOperation err = abort IllegalRead
+          | otherwise = error $ show err ++ "\nnote: According to System.IO documentation, this should not happen"
