@@ -29,8 +29,8 @@ module Control.Monad.Chain
     , achieve
     , (<?>)
     , finally
-    , recoverWhile
     , recover
+    , recoverWhile
     , recoverMany
     , recoverManyWith
     , recoverManyDescriptive
@@ -58,7 +58,7 @@ module Control.Monad.Chain
 
 import           Control.Monad.Except
 import           Control.Monad.Identity
-import           Control.Monad.IO.Class
+import           Control.Monad.IO.Class ()
 import           Control.Monad.Reader
 import           Control.Monad.State
 import           Data.Maybe             (fromMaybe)
@@ -86,9 +86,15 @@ runResultT chain =
 runResult :: Result msg '[] a -> a
 runResult = runIdentity . runResultT
 
+-- | Always execute a given computation (called finally block thereafter) after
+--   a first computation (try block) has been completed.
+--
+--   The 'finally' block is executed even if the 'try' block is aborted. This
+--   allows to deal with clean-up code that has to be executed no matter what
+--   happened.
 finally :: (Monad m)
-        => ResultT msg err m a
-        -> ResultT msg '[] m ()
+        => ResultT msg err m a -- ^ The try block
+        -> ResultT msg '[] m () -- ^ The 'finally' block
         -> ResultT msg err m a
 finally chain final =
   lift (gRunResultT chain) >>= \case
@@ -99,6 +105,16 @@ finally chain final =
       lift $ runResultT final
       throwErr (ctx, e)
 
+-- | Temporally allows one given error type by providing an error handler to
+--   execute in case of failure.
+recover :: forall e m msg err a.
+           (Monad m)
+        => ResultT msg (e:err) m a -- ^ The try block
+        -> (e -> [msg] -> ResultT msg err m a) -- ^ The error handler
+        -> ResultT msg err m a
+recover = flip pickError
+
+-- | Combine 'recover' and 'achieve'.
 recoverWhile :: forall e m msg err a.
                 (Monad m)
              => msg
@@ -107,16 +123,12 @@ recoverWhile :: forall e m msg err a.
              -> ResultT msg err m a
 recoverWhile msg chain f = achieve msg $ recover chain f
 
-recover :: forall e m msg err a.
-           (Monad m)
-        => ResultT msg (e:err) m a
-        -> (e -> [msg] -> ResultT msg err m a)
-        -> ResultT msg err m a
-recover = flip pickError
-
+-- | Similarly to 'recover', but with more than one error type
+--
+--   See '+>' and 'eoh' to build the 'Handler'
 recoverMany :: forall plus err m msg a.
                (Split plus err, Monad m)
-            => ResultT msg (Join plus err) m a
+            => ResultT msg (Join plus err) m a -- ^ The try block
             -> Handler plus ([msg] -> ResultT msg err m a)
             -> ResultT msg err m a
 recoverMany chain (Handler f) = do
@@ -136,10 +148,15 @@ instance HaveInstance c '[] where
 instance (HaveInstance c rst, c e) => HaveInstance c (e:rst) where
   generalize (f :: forall e. c e => e -> a) = f +> generalize @c @rst @a f
 
+-- | Similarly to 'recoverMany', but use the same error handler for every error
+--   types.
+--
+--   All the error types has to implement a given typeclass.
 recoverManyWith :: forall plus c err msg m a.
                    (HaveInstance c plus, Split plus err, Monad m)
-                => ResultT msg (Join plus err) m a
+                => ResultT msg (Join plus err) m a -- ^ The try block
                 -> (forall e. c e => e -> [msg] -> ResultT msg err m a)
+                         -- ^ The typeclass-based error handler
                 -> ResultT msg err m a
 recoverManyWith chain f = recoverMany @plus chain (generalize @c @plus @([msg] -> ResultT msg err m a) f)
 
