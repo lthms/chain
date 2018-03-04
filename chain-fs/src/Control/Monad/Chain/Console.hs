@@ -9,6 +9,7 @@
 module Control.Monad.Chain.Console
   ( echo
   , log
+  , scan
   , ConsoleError(..)
   ) where
 
@@ -19,7 +20,7 @@ import           Data.ByteString        (ByteString)
 import           Data.Text              (Text)
 import qualified Data.Text.IO           as TIO
 import           Prelude                hiding (log)
-import           System.IO              (Handle, stderr, stdout)
+import           System.IO              (Handle, stderr, stdin, stdout)
 import qualified System.IO              as IO
 
 data ConsoleError = StdErrError
@@ -41,12 +42,23 @@ printOrConsoleError handle msg err =
     (Fs.put handle msg)
     (\_ _ -> abort err)
 
+-- | Write 'Text' to stdout.
 echo :: ('[ConsoleError] :| err, MonadIO m)
      => Text
      -> ResultT msg err m ()
 echo msg = printOrConsoleError Fs.stdout msg StdOutError
 
+-- | Write 'Text' to stderr.
 log :: ('[ConsoleError] :| err, MonadIO m)
     => Text
     -> ResultT msg err m ()
 log msg = printOrConsoleError Fs.stderr msg StdErrError
+
+-- | Read one line of 'Text' from stdin.
+scan :: ('[ConsoleError] :| err, MonadIO m)
+     => ResultT msg err m Text
+scan = recoverMany @[Fs.OperationError, Fs.EoF]
+         (Fs.getLine Fs.stdin)
+         ((\_ _ -> abort StdInError)
+          +> (\ _ _ -> abort StdInError)
+          +> eoh)
