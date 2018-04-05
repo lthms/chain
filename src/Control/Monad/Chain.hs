@@ -73,6 +73,10 @@ gRunResultT (ResultT chain) = runExceptT chain
 throwErr :: (Monad m) => ([msg], OneOf err) -> ResultT msg err m a
 throwErr err = ResultT $ throwError err
 
+-- | Escape from the ResultT monad.
+--
+--   The type signature of 'runResultT' obliges the library user to deal with
+--   errors, with functions such as 'recover', 'recoverMany', etc.
 runResultT :: Monad m => ResultT msg '[] m a -> m a
 runResultT chain =
   gRunResultT chain >>= \case
@@ -121,7 +125,7 @@ recoverWhile msg chain f = achieve msg $ recover chain f
 
 -- | Similarly to 'recover', but with more than one error type
 --
---   See '+>' and 'eoh' to build the 'Handler'
+--   See '+>' and 'eoh' to build the 'Handler'.
 recoverMany :: forall plus err m msg a.
                (Split plus err, Monad m)
             => ResultT msg (Join plus err) m a -- ^ The try block
@@ -206,24 +210,31 @@ pickError f (ResultT chain) = do
         Right err -> throwErr (ctx, err)
     Right x -> pure x
 
-repeatUntil :: forall e err msg m.
+-- | Repeat a computation which may fail until it fails with a given error.
+--
+--   Typical use case is reading a file line by line, until reaching its end.
+--   If you want to carry some state, you can have a look at 'foldUntil'.
+repeatUntil :: forall e err msg m a.
                (Monad m)
             => ResultT msg (e:err) m ()
-            -> (e -> [msg] -> ResultT msg err m ())
+            -> (e -> [msg] -> ResultT msg err m a)
             -> ResultT msg err m ()
-repeatUntil chain = recover (forever chain)
+repeatUntil chain f = recover (forever chain) (\err ctx -> void $ f err ctx)
 
+-- | Same as 'repeatUntil', but without an error handler.
 repeatUntil' :: forall e err msg m.
                 (Monad m)
              => ResultT msg (e:err) m ()
              -> ResultT msg err m ()
 repeatUntil' chain = repeatUntil @e chain $ \_ _ -> pure ()
 
+-- | Similarly to 'repeatUntil', repeat a computation until a given error; in
+--   addition, carry an accumulator.
 foldUntil :: forall e err msg m a.
              (Monad m)
-          => a
+          => a                                         -- ^ Initial state
           -> (a -> ResultT msg (e:err) m a)
-          -> (a -> e -> [msg] -> ResultT msg err m a)
+          -> (a -> e -> [msg] -> ResultT msg err m a)  -- ^ Error handler
           -> ResultT msg err m a
 foldUntil x chain errh = do
   res <- lift $ gRunResultT (chain x)
@@ -233,9 +244,10 @@ foldUntil x chain errh = do
       Right e -> throwErr (ctx, e)
       Left e  -> errh x e ctx
 
+-- | Same as 'foldUntil', but without the error handler part.
 foldUntil' :: forall e err msg m a.
               (Monad m)
-           => a
+           => a                               -- ^ Initial state
            -> (a -> ResultT msg (e:err) m a)
            -> ResultT msg err m a
 foldUntil' x chain = foldUntil @e x chain $ \x _ _ -> pure x
